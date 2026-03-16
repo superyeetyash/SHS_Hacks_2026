@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title %></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-wrap">
+        <div class="brand-shape"></div>
+        <div>
+          <p class="eyebrow">Assessment Tools</p>
+          <h1 class="brand">EdgeProof Generator</h1>
+        </div>
+      </div>
+      <% if (isAuthenticated) { %>
+      <form method="post" action="/logout">
+        <button type="submit" class="ghost-button">Log Out</button>
+      </form>
+      <% } %>
+    </header>
+    <main class="page-shell">
