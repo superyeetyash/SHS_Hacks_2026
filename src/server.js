@@ -5,7 +5,7 @@ const morgan = require("morgan");
 const session = require("express-session");
 const dotenv = require("dotenv");
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");

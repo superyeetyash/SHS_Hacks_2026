@@ -2,6 +2,14 @@ const express = require("express");
 
 const router = express.Router();
 
+function normalizeEmail(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizeSecret(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function safeEquals(a, b) {
   return typeof a === "string" && typeof b === "string" && a === b;
 }
@@ -21,8 +29,10 @@ router.get("/login", (req, res) => {
 router.post("/login", (req, res) => {
   const { email, password } = req.body;
 
-  const expectedEmail = process.env.ADMIN_EMAIL;
-  const expectedPassword = process.env.ADMIN_PASSWORD;
+  const expectedEmail = normalizeEmail(process.env.ADMIN_EMAIL);
+  const expectedPassword = normalizeSecret(process.env.ADMIN_PASSWORD);
+  const providedEmail = normalizeEmail(email);
+  const providedPassword = normalizeSecret(password);
 
   if (!expectedEmail || !expectedPassword) {
     return res.status(500).render("login", {
@@ -32,7 +42,7 @@ router.post("/login", (req, res) => {
     });
   }
 
-  if (!safeEquals(email, expectedEmail) || !safeEquals(password, expectedPassword)) {
+  if (!safeEquals(providedEmail, expectedEmail) || !safeEquals(providedPassword, expectedPassword)) {
     return res.status(401).render("login", {
       title: "Admin Login",
       error: "Invalid email or password.",
