@@ -106,7 +106,7 @@ async function setupCodeEditors() {
     const editor = monaco.editor.create(host, {
       value: textarea.value || "",
       language: mapEditorLanguage(langSelect ? langSelect.value : ""),
-      theme: "vs-dark",
+      theme: "vs",
       automaticLayout: true,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
