@@ -58,22 +58,28 @@ You can change the function name in the dashboard.
 
 ## Local Setup
 
-The primary app now lives in `agency-website/`.
+The app lives in `agency-website/`.
 
 1. Install dependencies:
 
 ```bash
-cd agency-website
-pnpm install
-# or: npm install
+npm install --prefix agency-website
 ```
 
-2. Run in development mode:
+2. Run in development mode (from repo root):
 
 ```bash
-pnpm dev
-# or: npm run dev
+npm run dev
 ```
+
+Or, run from inside the app folder:
+
+```bash
+cd agency-website
+npm run dev
+```
+
+Windows note: if PowerShell blocks `npm` due to an execution policy on `npm.ps1`, run `npm.cmd` (e.g. `npm.cmd run dev`) or use Command Prompt.
 
 3. Open:
 
@@ -89,7 +95,6 @@ http://localhost:3000/edgeproof
 
 ## Production Notes
 
-- Replace in-memory sessions with a persistent store (Redis, DB, etc.)
 - Add CSRF protection and rate limiting
 - Integrate execution sandboxing if you later run untrusted student code
 
@@ -108,6 +113,4 @@ agency-website/
       codeRunner.ts
       testCaseGenerator.ts
       types.ts
-
-src/ (legacy Express/EJS app)
 ```
