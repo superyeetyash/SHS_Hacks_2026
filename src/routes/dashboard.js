@@ -3,7 +3,7 @@ const { isDeepStrictEqual } = require("util");
 
 const { requireAuth } = require("../middleware/auth");
 const { generateTestCases } = require("../services/testCaseGenerator");
-const { runReferenceOnce } = require("../services/codeRunner");
+const { runReferenceBatch, runReferenceOnce } = require("../services/codeRunner");
 
 const router = express.Router();
 
@@ -24,31 +24,50 @@ function addMissingFunctionHint(errorText, functionName, language) {
   return errorText;
 }
 
+function estimateBatchTimeoutMs(caseCount) {
+  const n = Number.isFinite(caseCount) ? caseCount : 0;
+  // Base + small per-case allowance, capped.
+  return Math.min(4000 + n * 35, 30000);
+}
+
 function evaluateStudentCode({ generated, language, functionName, candidateCode }) {
   let passCount = 0;
   let failCount = 0;
   let errorCount = 0;
 
-  generated.testCases = generated.testCases.map((testCase) => {
-    const studentExecution = runReferenceOnce({
-      language,
-      referenceCode: candidateCode,
-      functionName,
-      input: testCase.input,
-      timeoutMs: 3000
-    });
+  const inputs = generated.testCases.map((testCase) => testCase.input);
+  const studentBatch = runReferenceBatch({
+    language,
+    referenceCode: candidateCode,
+    functionName,
+    inputs,
+    timeoutMs: estimateBatchTimeoutMs(inputs.length)
+  });
 
-    const studentError = studentExecution.ok
+  const globalStudentError = studentBatch.ok
+    ? null
+    : addMissingFunctionHint(studentBatch.error, functionName, language);
+  const batchResults = studentBatch.ok ? studentBatch.results : [];
+
+  generated.testCases = generated.testCases.map((testCase, idx) => {
+    const perCase = studentBatch.ok ? batchResults[idx] : null;
+    const ok = Boolean(perCase && perCase.ok);
+
+    const studentError = ok
       ? null
-      : addMissingFunctionHint(studentExecution.error, functionName, language);
+      : addMissingFunctionHint(
+          perCase?.error || globalStudentError || "Execution failed for this test case.",
+          functionName,
+          language
+        );
 
     const expectedReady = testCase.expected !== "depends-on-spec";
     const isPass =
-      expectedReady && studentExecution.ok
-        ? isDeepStrictEqual(studentExecution.result, testCase.expected)
+      expectedReady && ok
+        ? isDeepStrictEqual(perCase.result, testCase.expected)
         : false;
 
-    if (!studentExecution.ok) {
+    if (!ok) {
       errorCount += 1;
       failCount += 1;
     } else if (expectedReady && isPass) {
@@ -59,7 +78,7 @@ function evaluateStudentCode({ generated, language, functionName, candidateCode 
 
     return {
       ...testCase,
-      studentOutput: studentExecution.ok ? studentExecution.result : null,
+      studentOutput: ok ? perCase.result : null,
       studentError,
       studentPass: isPass,
       expectedReady
@@ -131,56 +150,67 @@ router.post("/dashboard/generate", requireAuth, (req, res) => {
     });
   }
 
+  let exampleInput = null;
+
+  if (formData.exampleInputJson) {
+    try {
+      exampleInput = JSON.parse(formData.exampleInputJson);
+    } catch {
+      return res.status(400).render("dashboard", {
+        title: "Test Case Generator",
+        error: "Example input must be valid JSON (for example: {\"arr\":[1,2,3]}).",
+        result: null,
+        formData
+      });
+    }
+  }
+
   const generated = generateTestCases({
     challengeTitle: formData.challengeTitle,
     language: formData.language,
     directions: formData.directions,
     referenceCode: formData.referenceCode,
-    requiredCount: formData.requiredCount
+    requiredCount: formData.requiredCount,
+    exampleInput
   });
 
   if (formData.runCodeEnabled) {
-    let exampleInput = null;
+    const inputs = generated.testCases.map((testCase) => testCase.input);
+    const batchExecution = runReferenceBatch({
+      language: formData.language,
+      referenceCode: formData.referenceCode,
+      functionName: formData.functionName,
+      inputs,
+      timeoutMs: estimateBatchTimeoutMs(inputs.length)
+    });
 
-    if (formData.exampleInputJson) {
-      try {
-        exampleInput = JSON.parse(formData.exampleInputJson);
-      } catch {
-        return res.status(400).render("dashboard", {
-          title: "Test Case Generator",
-          error: "Example input must be valid JSON (for example: {\"arr\":[1,2,3]}).",
-          result: null,
-          formData
-        });
-      }
-    }
+    const globalExecutionError = batchExecution.ok
+      ? null
+      : addMissingFunctionHint(batchExecution.error, formData.functionName, formData.language);
 
     let successCount = 0;
     let failedCount = 0;
 
-    generated.testCases = generated.testCases.map((testCase) => {
-      const execution = runReferenceOnce({
-        language: formData.language,
-        referenceCode: formData.referenceCode,
-        functionName: formData.functionName,
-        input: testCase.input,
-        timeoutMs: 3000
-      });
+    const batchResults = batchExecution.ok ? batchExecution.results : [];
 
-      const executionError = execution.ok
+    generated.testCases = generated.testCases.map((testCase, idx) => {
+      const perCase = batchExecution.ok ? batchResults[idx] : null;
+      const ok = Boolean(perCase && perCase.ok);
+      if (ok) successCount += 1;
+      else failedCount += 1;
+
+      const executionError = ok
         ? null
-        : addMissingFunctionHint(execution.error, formData.functionName, formData.language);
-
-      if (execution.ok) {
-        successCount += 1;
-      } else {
-        failedCount += 1;
-      }
+        : addMissingFunctionHint(
+            perCase?.error || globalExecutionError || "Execution failed for this test case.",
+            formData.functionName,
+            formData.language
+          );
 
       return {
         ...testCase,
-        expected: execution.ok ? execution.result : testCase.expected,
-        actualOutput: execution.ok ? execution.result : null,
+        expected: ok ? perCase.result : testCase.expected,
+        actualOutput: ok ? perCase.result : null,
         executionError
       };
     });

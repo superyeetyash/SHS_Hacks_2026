@@ -7,7 +7,6 @@ const dotenv = require("dotenv");
 
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
-const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
 const { injectAuthState } = require("./middleware/auth");
 
@@ -28,7 +27,8 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      sameSite: "lax"
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000
     }
   })
 );
@@ -37,13 +37,8 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(injectAuthState);
 
 app.get("/", (req, res) => {
-  if (req.session.isAuthenticated) {
-    return res.redirect("/dashboard");
-  }
-  return res.redirect("/login");
+  return res.redirect("/dashboard");
 });
-
-app.use(authRoutes);
 app.use(dashboardRoutes);
 
 app.use((req, res) => {

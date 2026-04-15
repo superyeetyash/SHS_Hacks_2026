@@ -2,14 +2,14 @@ function setupJsonActions() {
   const outputEl = document.getElementById("jsonOutput");
   if (!outputEl) return;
 
-  const raw = outputEl.textContent || "";
+  const getRaw = () => outputEl.textContent || "";
   const copyBtn = document.getElementById("copyJsonButton");
   const downloadBtn = document.getElementById("downloadJsonButton");
 
   if (copyBtn) {
     copyBtn.addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(raw);
+        await navigator.clipboard.writeText(getRaw());
         copyBtn.textContent = "Copied";
         setTimeout(() => {
           copyBtn.textContent = "Copy JSON";
@@ -22,7 +22,7 @@ function setupJsonActions() {
 
   if (downloadBtn) {
     downloadBtn.addEventListener("click", () => {
-      const blob = new Blob([raw], { type: "application/json" });
+      const blob = new Blob([getRaw()], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -31,6 +31,27 @@ function setupJsonActions() {
       URL.revokeObjectURL(url);
     });
   }
+}
+
+function prefersReducedMotion() {
+  return Boolean(
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function setupAutoScrollToResults() {
+  const resultCard = document.querySelector(".result-card");
+  const hasResult = document.getElementById("jsonOutput");
+  if (!resultCard || !hasResult) return;
+
+  const rect = resultCard.getBoundingClientRect();
+  const isAlreadyVisible = rect.top >= 0 && rect.top < window.innerHeight * 0.25;
+  if (isAlreadyVisible) return;
+
+  const behavior = prefersReducedMotion() ? "auto" : "smooth";
+  requestAnimationFrame(() => {
+    resultCard.scrollIntoView({ behavior, block: "start" });
+  });
 }
 
 function loadScript(src) {
@@ -64,7 +85,54 @@ function mapEditorLanguage(language) {
   return "plaintext";
 }
 
-async function setupCodeEditors() {
+function isRunnerSupported(language) {
+  const normalized = (language || "").toLowerCase();
+  return normalized === "python" || normalized === "javascript";
+}
+
+function setupRunnerToggleState() {
+  const langSelect = document.querySelector("select[name='language']");
+  if (!langSelect) return;
+
+  const runReferenceCheckbox = document.querySelector("input[name='runCodeEnabled']");
+  const runCandidateCheckbox = document.querySelector("input[name='runCandidateEnabled']");
+
+  const updateCheckbox = (checkbox, labelOn, labelOff) => {
+    if (!checkbox) return;
+    const row = checkbox.closest(".checkbox-row");
+    const label = row ? row.querySelector("span") : null;
+
+    const supported = isRunnerSupported(langSelect.value);
+    checkbox.disabled = !supported;
+    if (!supported) checkbox.checked = false;
+
+    if (label) {
+      label.textContent = supported ? labelOn : labelOff;
+    }
+
+    if (row) {
+      row.classList.toggle("is-disabled", !supported);
+    }
+  };
+
+  const update = () => {
+    updateCheckbox(
+      runReferenceCheckbox,
+      "Run reference code now",
+      "Run reference code now (Python/JS only)"
+    );
+    updateCheckbox(
+      runCandidateCheckbox,
+      "Run student code against generated tests",
+      "Run student code against generated tests (Python/JS only)"
+    );
+  };
+
+  langSelect.addEventListener("change", update);
+  update();
+}
+
+async function initCodeEditors() {
   const textareas = Array.from(document.querySelectorAll("textarea[data-code-editor='true']"));
   if (!textareas.length) return;
 
@@ -100,13 +168,18 @@ async function setupCodeEditors() {
     const height = Number(textarea.dataset.editorHeight || 260);
     host.style.height = `${height}px`;
 
+    if (textarea.required) {
+      textarea.dataset.wasRequired = "yes";
+      textarea.required = false;
+    }
+
     textarea.style.display = "none";
     textarea.insertAdjacentElement("afterend", host);
 
     const editor = monaco.editor.create(host, {
       value: textarea.value || "",
       language: mapEditorLanguage(langSelect ? langSelect.value : ""),
-      theme: "vs",
+      theme: "vs-dark",
       automaticLayout: true,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
@@ -119,6 +192,9 @@ async function setupCodeEditors() {
     editor.onDidChangeModelContent(() => {
       textarea.value = editor.getValue();
     });
+
+    // Sync once so native form validation doesn't trip on an empty hidden textarea.
+    textarea.value = editor.getValue();
 
     editors.push({ textarea, editor });
   });
@@ -143,5 +219,24 @@ async function setupCodeEditors() {
   }
 }
 
+function setupCodeEditorsOnDemand() {
+  const textareas = Array.from(document.querySelectorAll("textarea[data-code-editor='true']"));
+  if (!textareas.length) return;
+
+  let started = false;
+  const start = async () => {
+    if (started) return;
+    started = true;
+    await initCodeEditors();
+  };
+
+  textareas.forEach((t) => {
+    t.addEventListener("focus", () => void start(), { once: true });
+    t.addEventListener("paste", () => void start(), { once: true });
+  });
+}
+
 setupJsonActions();
-setupCodeEditors();
+setupAutoScrollToResults();
+setupCodeEditorsOnDemand();
+setupRunnerToggleState();

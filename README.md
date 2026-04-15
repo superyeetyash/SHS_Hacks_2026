@@ -4,7 +4,7 @@ Curated by Yasashvee Karthi, Alexander Jonathon Jameson, Guru Anish Agneeswaran,
 
 ## EdgeProof Generator (Admin Test-Case Builder)
 
-This project now includes a full-stack admin website for generating robust programming test suites from:
+This project includes a full-stack website for generating robust programming test suites from:
 - assignment directions
 - a reference implementation
 - a requested test count
@@ -13,14 +13,12 @@ The app focuses on edge-case coverage templates (empty inputs, boundaries, malfo
 
 ## Features
 
-- Admin login (`ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env`)
-- Protected dashboard
+- No login required
 - Input fields for challenge title, language, directions, and reference code
 - Heuristic test-case generator that infers input model (`array`, `string`, `number`, `matrix`, `graph`)
 - Optional execution of generated test cases against your reference code (Python/JavaScript)
 - Per-test input/output preview plus optional example run from custom JSON input
 - Paste student code later and retest against the same generated suite (pass/fail + runtime errors)
-- JSON output preview, copy-to-clipboard, and file download
 - Responsive UI
 
 ## Important Limitation
@@ -53,73 +51,63 @@ You can change the function name in the dashboard.
 
 ## Tech Stack
 
-- Node.js
-- Express + EJS
-- Express sessions
-- Vanilla CSS/JS
+- Next.js (App Router)
+- React + TypeScript
+- Tailwind + shadcn/Radix UI
+- Node runtime API routes (executes reference/student code)
 
 ## Local Setup
+
+The primary app now lives in `agency-website/`.
 
 1. Install dependencies:
 
 ```bash
-npm install
+cd agency-website
+pnpm install
+# or: npm install
 ```
 
-2. Create environment file:
+2. Run in development mode:
 
 ```bash
-cp .env.example .env
+pnpm dev
+# or: npm run dev
 ```
 
-3. Set secure values in `.env`:
-
-```env
-PORT=3000
-SESSION_SECRET=replace-with-a-long-random-secret
-ADMIN_EMAIL=teacher@example.com
-ADMIN_PASSWORD=ChangeMe123!
-```
-
-4. Run in development mode:
-
-```bash
-npm run dev
-```
-
-5. Open:
+3. Open:
 
 ```text
 http://localhost:3000
 ```
 
+The template homepage is served at `/`. The EdgeProof dashboard is at:
+
+```text
+http://localhost:3000/edgeproof
+```
+
 ## Production Notes
 
-- Replace in-memory sessions with a persistent session store (Redis, DB, etc.)
+- Replace in-memory sessions with a persistent store (Redis, DB, etc.)
 - Add CSRF protection and rate limiting
-- Hash credentials in a database instead of plaintext `.env` credentials
 - Integrate execution sandboxing if you later run untrusted student code
 
 ## Project Structure
 
 ```text
-src/
-	middleware/
-		auth.js
-	routes/
-		auth.js
-		dashboard.js
-	services/
-		testCaseGenerator.js
-	server.js
-views/
-	partials/
-		header.ejs
-		footer.ejs
-	dashboard.ejs
-	error.ejs
-	login.ejs
-public/
-	css/styles.css
-	js/main.js
+agency-website/
+  app/
+    api/
+      generate/route.ts
+      retest/route.ts
+    page.tsx
+    edgeproof/page.tsx
+  lib/
+    edgeproof/
+      codeRunner.ts
+      testCaseGenerator.ts
+      types.ts
+
+src/ (legacy Express/EJS app)
 ```
