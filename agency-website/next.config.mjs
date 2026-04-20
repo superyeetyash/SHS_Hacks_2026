@@ -6,7 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  devIndicators: false,
+  devIndicators: false, //local dev indicator toggle
 }
 
 export default nextConfig
