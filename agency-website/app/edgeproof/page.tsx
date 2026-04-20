@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { MonacoTerminalEditor } from "@/components/ui/monaco-terminal-editor";
+import { TerminalEditor } from "@/components/ui/terminal-editor";
 
 import type { GeneratedSuite } from "@/lib/edgeproof/types";
 
@@ -78,26 +79,30 @@ function EdgeproofApp() {
     setIsGenerating(true);
 
     try {
+      let exampleInput: unknown | undefined;
+      if (form.exampleInputJson.trim()) {
+        try {
+          exampleInput = JSON.parse(form.exampleInputJson);
+        } catch {
+          throw new Error("Example input JSON must be valid JSON.");
+        }
+      }
+
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          title: form.title,
+          challengeTitle: form.title,
           directions: form.directions,
           language: form.language,
           functionName: form.functionName,
           requiredCount: form.requiredCount,
-          seed: form.seed || undefined,
-          example: form.exampleDescription
-            ? {
-                description: form.exampleDescription,
-                inputJson: form.exampleInputJson || "{}",
-              }
-            : undefined,
           runReference: form.runReference,
           referenceCode: form.referenceCode,
           runStudent: form.runStudent,
           studentCode: form.runStudent ? form.studentCode : undefined,
+          exampleInput,
+          exampleDescription: form.exampleDescription || undefined,
         }),
       });
 
@@ -246,11 +251,12 @@ function EdgeproofApp() {
                 <Label htmlFor="title">
                   <DecryptText text="Challenge title" />
                 </Label>
-                <Input
-                  id="title"
+                <TerminalEditor
                   value={form.title}
-                  onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                  onChange={(value) => setForm((p) => ({ ...p, title: value }))}
                   placeholder="Two Sum, Longest Substring..."
+                  ariaLabel="Challenge title"
+                  minHeight="44px"
                 />
               </div>
 
@@ -261,7 +267,7 @@ function EdgeproofApp() {
                   </Label>
                   <select
                     id="language"
-                    className="border-input bg-background h-10 rounded-md border px-3 text-sm"
+                    className="border-input bg-input/30 focus-visible:border-ring focus-visible:ring-ring/50 h-10 rounded-md border px-3 text-sm font-mono shadow-xs outline-none focus-visible:ring-[3px]"
                     value={form.language}
                     onChange={(e) => setForm((p) => ({ ...p, language: e.target.value as Language }))}
                   >
@@ -288,11 +294,12 @@ function EdgeproofApp() {
                   <Label htmlFor="seed">
                     <DecryptText text="Seed (optional)" />
                   </Label>
-                  <Input
-                    id="seed"
+                  <TerminalEditor
                     value={form.seed}
-                    onChange={(e) => setForm((p) => ({ ...p, seed: e.target.value }))}
+                    onChange={(value) => setForm((p) => ({ ...p, seed: value }))}
                     placeholder="leave blank for random"
+                    ariaLabel="Seed (optional)"
+                    minHeight="44px"
                   />
                 </div>
 
@@ -300,11 +307,12 @@ function EdgeproofApp() {
                   <Label htmlFor="functionName">
                     <DecryptText text="Function name" />
                   </Label>
-                  <Input
-                    id="functionName"
+                  <TerminalEditor
                     value={form.functionName}
-                    onChange={(e) => setForm((p) => ({ ...p, functionName: e.target.value }))}
+                    onChange={(value) => setForm((p) => ({ ...p, functionName: value }))}
                     placeholder="solve"
+                    ariaLabel="Function name"
+                    minHeight="44px"
                   />
                 </div>
 
@@ -328,12 +336,12 @@ function EdgeproofApp() {
                 <Label htmlFor="directions">
                   <DecryptText text="Directions / prompt" />
                 </Label>
-                <Textarea
-                  id="directions"
+                <TerminalEditor
                   value={form.directions}
-                  onChange={(e) => setForm((p) => ({ ...p, directions: e.target.value }))}
+                  onChange={(value) => setForm((p) => ({ ...p, directions: value }))}
                   placeholder="Explain the problem, input/output, and constraints..."
-                  className="min-h-32"
+                  ariaLabel="Directions / prompt"
+                  minHeight="128px"
                 />
               </div>
 
@@ -341,12 +349,18 @@ function EdgeproofApp() {
                 <Label htmlFor="referenceCode">
                   <DecryptText text="Reference solution" />
                 </Label>
-                <Textarea
-                  id="referenceCode"
+                <MonacoTerminalEditor
                   value={form.referenceCode}
-                  onChange={(e) => setForm((p) => ({ ...p, referenceCode: e.target.value }))}
-                  placeholder={form.language === "python" ? "def solve(input_data):\n    ..." : "function solve(input) {\n  ...\n}"}
-                  className="min-h-44 font-mono text-xs"
+                  onChange={(value) => setForm((p) => ({ ...p, referenceCode: value }))}
+                  placeholder={
+                    form.language === "python"
+                      ? "def solve(input_data):\n    ..."
+                      : "function solve(input) {\n  ...\n}"
+                  }
+                  ariaLabel="Reference solution"
+                  language={form.language}
+                  path={form.language === "python" ? "reference.py" : "reference.js"}
+                  minHeight="176px"
                 />
               </div>
 
@@ -369,16 +383,18 @@ function EdgeproofApp() {
                 <Label htmlFor="studentCode">
                   <DecryptText text="Student code" />
                 </Label>
-                <Textarea
-                  id="studentCode"
+                <MonacoTerminalEditor
                   value={form.studentCode}
-                  onChange={(e) => setForm((p) => ({ ...p, studentCode: e.target.value }))}
+                  onChange={(value) => setForm((p) => ({ ...p, studentCode: value }))}
                   placeholder={
                     form.language === "python"
                       ? "def solve(input_data):\n    ..."
                       : "function solve(input) {\n  ...\n}"
                   }
-                  className="min-h-44 font-mono text-xs"
+                  ariaLabel="Student code"
+                  language={form.language}
+                  path={form.language === "python" ? "student.py" : "student.js"}
+                  minHeight="176px"
                 />
               </div>
 
@@ -387,11 +403,12 @@ function EdgeproofApp() {
                   <Label htmlFor="exampleDescription">
                     <DecryptText text="Example description (optional)" />
                   </Label>
-                  <Input
-                    id="exampleDescription"
+                  <TerminalEditor
                     value={form.exampleDescription}
-                    onChange={(e) => setForm((p) => ({ ...p, exampleDescription: e.target.value }))}
+                    onChange={(value) => setForm((p) => ({ ...p, exampleDescription: value }))}
                     placeholder="Optional example run"
+                    ariaLabel="Example description (optional)"
+                    minHeight="44px"
                   />
                 </div>
 
@@ -399,18 +416,24 @@ function EdgeproofApp() {
                   <Label htmlFor="exampleInputJson">
                     <DecryptText text="Example input JSON (optional)" />
                   </Label>
-                  <Input
-                    id="exampleInputJson"
+                  <TerminalEditor
                     value={form.exampleInputJson}
-                    onChange={(e) => setForm((p) => ({ ...p, exampleInputJson: e.target.value }))}
+                    onChange={(value) => setForm((p) => ({ ...p, exampleInputJson: value }))}
                     placeholder='{"arr":[1,2,3]}'
+                    ariaLabel="Example input JSON (optional)"
+                    language="json"
+                    minHeight="44px"
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-3">
               <Button onClick={handleGenerate} disabled={isGenerating}>
-                {isGenerating ? <DecryptText text="Generating..." /> : <DecryptText text="Generate suite" />}
+                {isGenerating ? (
+                  <DecryptText text="Generating..." trigger="click" />
+                ) : (
+                  <DecryptText text="Generate suite" trigger="click" />
+                )}
               </Button>
             </CardFooter>
           </Card>
@@ -539,26 +562,33 @@ function EdgeproofApp() {
                         <Label htmlFor="retestFunctionName">
                           <DecryptText text="Function name" />
                         </Label>
-                        <Input
-                          id="retestFunctionName"
+                        <TerminalEditor
                           value={form.functionName}
-                          onChange={(e) => setForm((p) => ({ ...p, functionName: e.target.value }))}
+                          onChange={(value) => setForm((p) => ({ ...p, functionName: value }))}
+                          ariaLabel="Function name"
+                          minHeight="44px"
                         />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="retestStudentCode">
                           <DecryptText text="Student code" />
                         </Label>
-                        <Textarea
-                          id="retestStudentCode"
+                        <MonacoTerminalEditor
                           value={form.studentCode}
-                          onChange={(e) => setForm((p) => ({ ...p, studentCode: e.target.value }))}
-                          className="min-h-32 font-mono text-xs"
+                          onChange={(value) => setForm((p) => ({ ...p, studentCode: value }))}
+                          ariaLabel="Student code"
+                          language={form.language}
+                          path={form.language === "python" ? "retest-student.py" : "retest-student.js"}
+                          minHeight="128px"
                         />
                       </div>
                       <div className="flex justify-end">
                         <Button onClick={handleRetest} disabled={isRetesting}>
-                          {isRetesting ? <DecryptText text="Retesting..." /> : <DecryptText text="Retest" />}
+                          {isRetesting ? (
+                            <DecryptText text="Retesting..." trigger="click" />
+                          ) : (
+                            <DecryptText text="Retest" trigger="click" />
+                          )}
                         </Button>
                       </div>
                     </div>

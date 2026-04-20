@@ -66,31 +66,36 @@ The app lives in `agency-website/`.
 npm install --prefix agency-website
 ```
 
-2. Run in development mode (from repo root):
+If `npm`/`node` aren’t available on your PATH (or PowerShell blocks `npm.ps1`), use the repo-bundled Node runtime (if present):
 
-```bash
-npm run dev
-```
-
-Or, run from inside the app folder:
-
-```bash
+```powershell
 cd agency-website
-npm run dev
+..\.tools\node\node-v24.14.1-win-x64\npm.cmd install
 ```
 
-Windows note: if PowerShell blocks `npm` due to an execution policy on `npm.ps1`, run `npm.cmd` (e.g. `npm.cmd run dev`) or use Command Prompt.
+2. Run in development mode:
+
+```bash
+npm run dev -- --port 3003
+```
+
+If you’re using the bundled Node runtime, start Next directly (choose any port you want):
+
+```powershell
+cd agency-website
+..\.tools\node\node-v24.14.1-win-x64\node.exe .\node_modules\next\dist\bin\next dev --port 3003
+```
 
 3. Open:
 
 ```text
-http://localhost:3000
+http://localhost:3003
 ```
 
-The template homepage is served at `/`. The EdgeProof dashboard is at:
+EdgeProof is at:
 
 ```text
-http://localhost:3000/edgeproof
+http://localhost:3003/edgeproof
 ```
 
 ## Production Notes

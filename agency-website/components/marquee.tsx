@@ -72,12 +72,12 @@ export default function Marquee() {
 					<div className="flex flex-col gap-3 sm:flex-row">
 						<Button size="lg" className="font-mono" asChild>
 							<Link href="/edgeproof">
-								<ScrambleText text="GET_STARTED" />
+								<ScrambleText text="GET_STARTED" trigger="click" />
 							</Link>
 						</Button>
 						<Button size="lg" variant="outline" className="font-mono" asChild>
 							<Link href="#work">
-								<ScrambleText text="VIEW_WORK" />
+								<ScrambleText text="VIEW_WORK" trigger="click" />
 							</Link>
 						</Button>
 					</div>

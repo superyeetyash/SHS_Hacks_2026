@@ -31,12 +31,16 @@ function scrambleTo(text: string, revealCount: number) {
 	return out.join("");
 }
 
+type ScrambleTrigger = "hover" | "click" | "none";
+
 export function ScrambleText({
 	text,
 	className,
+	trigger = "hover",
 }: {
 	text: string;
 	className?: string;
+	trigger?: ScrambleTrigger;
 }) {
 	const [display, setDisplay] = React.useState(text);
 	const runningRef = React.useRef<number | null>(null);
@@ -47,7 +51,13 @@ export function ScrambleText({
 		};
 	}, []);
 
-	function onHover() {
+	React.useEffect(() => {
+		if (runningRef.current) window.clearInterval(runningRef.current);
+		runningRef.current = null;
+		setDisplay(text);
+	}, [text]);
+
+	function runScramble() {
 		if (runningRef.current) window.clearInterval(runningRef.current);
 		let step = 0;
 		const maxSteps = Math.max(12, text.length * 2);
@@ -66,7 +76,11 @@ export function ScrambleText({
 	}
 
 	return (
-		<span className={cn("font-mono", className)} onMouseEnter={onHover}>
+		<span
+			className={cn("font-mono", className)}
+			onMouseEnter={trigger === "hover" ? runScramble : undefined}
+			onClick={trigger === "click" ? runScramble : undefined}
+		>
 			{display}
 		</span>
 	);
@@ -75,9 +89,11 @@ export function ScrambleText({
 export function DecryptText({
 	text,
 	className,
+	trigger = "hover",
 }: {
 	text: string;
 	className?: string;
+	trigger?: ScrambleTrigger;
 }) {
 	const [display, setDisplay] = React.useState(() => scrambleTo(text, 0));
 	const runningRef = React.useRef<number | null>(null);
@@ -109,7 +125,7 @@ export function DecryptText({
 		};
 	}, [text]);
 
-	function onHover() {
+	function runScramble() {
 		if (!revealedRef.current) return;
 		if (runningRef.current) window.clearInterval(runningRef.current);
 		let step = 0;
@@ -129,7 +145,11 @@ export function DecryptText({
 	}
 
 	return (
-		<span className={cn(className)} onMouseEnter={onHover}>
+		<span
+			className={cn(className)}
+			onMouseEnter={trigger === "hover" ? runScramble : undefined}
+			onClick={trigger === "click" ? runScramble : undefined}
+		>
 			{display}
 		</span>
 	);
@@ -364,7 +384,7 @@ export function ThemeToggle() {
 
 	return (
 		<Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => setTheme(nextTheme)}>
-			<ScrambleText text={isDark ? "DARK" : "LIGHT"} />
+			<ScrambleText text={isDark ? "DARK" : "LIGHT"} trigger="click" />
 		</Button>
 	);
 }
