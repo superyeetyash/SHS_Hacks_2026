@@ -209,22 +209,24 @@ export function HelixGate({
 		if (!canvas) return;
 		const ctx = canvas.getContext("2d");
 		if (!ctx) return;
+		const canvasEl = canvas;
+		const context = ctx;
 
 		let dpr = Math.max(1, window.devicePixelRatio || 1);
 
 		function resize() {
-			const rect = canvas.getBoundingClientRect();
+			const rect = canvasEl.getBoundingClientRect();
 			dpr = Math.max(1, window.devicePixelRatio || 1);
-			canvas.width = Math.floor(rect.width * dpr);
-			canvas.height = Math.floor(rect.height * dpr);
-			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
+			canvasEl.width = Math.floor(rect.width * dpr);
+			canvasEl.height = Math.floor(rect.height * dpr);
+			context.setTransform(dpr, 0, 0, dpr, 0, 0);
+			context.textAlign = "center";
+			context.textBaseline = "middle";
 		}
 
 		resize();
 		const ro = new ResizeObserver(resize);
-		ro.observe(canvas);
+		ro.observe(canvasEl);
 
 		let raf = 0;
 		let prevNow = performance.now();
@@ -232,6 +234,29 @@ export function HelixGate({
 		let lastFill = "";
 		let nextFillCheckAt = 0;
 		let isDarkTheme = true;
+		let redrawQueued = false;
+		let mutationObserver: MutationObserver | null = null;
+
+		function drawFrame(now: number) {
+			const w = canvasEl.clientWidth;
+			const h = canvasEl.clientHeight;
+			context.clearRect(0, 0, w, h);
+
+			if (phaseRef.current === "idle") {
+				drawHelix(now, w, h);
+			} else {
+				drawExplosion(Math.min(0.05, (now - prevNow) / 1000));
+			}
+		}
+
+		function queueStaticRedraw() {
+			if (interactive || redrawQueued) return;
+			redrawQueued = true;
+			window.requestAnimationFrame((now) => {
+				redrawQueued = false;
+				drawFrame(now);
+			});
+		}
 
 		function syncFill(now: number) {
 			if (now < nextFillCheckAt) return;
@@ -306,19 +331,19 @@ export function HelixGate({
 
 			lastPointsRef.current = points;
 
-			ctx.fillStyle = fill;
+			context.fillStyle = fill;
 			for (const p of points) {
-				ctx.globalAlpha = p.a;
-				ctx.font = `600 ${p.size.toFixed(1)}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace`;
-				ctx.fillText(p.char, p.x, p.y);
+				context.globalAlpha = p.a;
+				context.font = `600 ${p.size.toFixed(1)}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace`;
+				context.fillText(p.char, p.x, p.y);
 			}
-			ctx.globalAlpha = 1;
+			context.globalAlpha = 1;
 		}
 
 		function drawExplosion(dt: number) {
 			syncFill(performance.now());
 			const particles = particlesRef.current;
-			ctx.fillStyle = fill;
+			context.fillStyle = fill;
 
 			const gravity = 420;
 			const damp = 0.985;
@@ -334,11 +359,11 @@ export function HelixGate({
 			const fade = Math.max(0, 1 - elapsed / 1.05);
 
 			for (const p of particles) {
-				ctx.globalAlpha = Math.max(0, Math.min(1, p.a * fade));
-				ctx.font = `600 ${p.size.toFixed(1)}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace`;
-				ctx.fillText(p.char, p.x, p.y);
+				context.globalAlpha = Math.max(0, Math.min(1, p.a * fade));
+				context.font = `600 ${p.size.toFixed(1)}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace`;
+				context.fillText(p.char, p.x, p.y);
 			}
-			ctx.globalAlpha = 1;
+			context.globalAlpha = 1;
 
 			if (elapsed > 1.05 && !finishedRef.current) {
 				finishedRef.current = true;
@@ -347,12 +372,17 @@ export function HelixGate({
 		}
 
 		function loop(now: number) {
+			if (!interactive) {
+				drawFrame(now);
+				return;
+			}
+
 			const dt = Math.min(0.05, (now - prevNow) / 1000);
 			prevNow = now;
 
-			const w = canvas.clientWidth;
-			const h = canvas.clientHeight;
-			ctx.clearRect(0, 0, w, h);
+			const w = canvasEl.clientWidth;
+			const h = canvasEl.clientHeight;
+			context.clearRect(0, 0, w, h);
 
 			if (phaseRef.current === "idle") {
 				drawHelix(now, w, h);
@@ -363,9 +393,16 @@ export function HelixGate({
 			raf = window.requestAnimationFrame(loop);
 		}
 
-		raf = window.requestAnimationFrame(loop);
+		if (interactive) {
+			raf = window.requestAnimationFrame(loop);
+		} else {
+			drawFrame(prevNow);
+			mutationObserver = new MutationObserver(() => queueStaticRedraw());
+			mutationObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+		}
 		return () => {
 			window.cancelAnimationFrame(raf);
+			mutationObserver?.disconnect();
 			ro.disconnect();
 		};
 	}, [onComplete]);

@@ -1,3 +1,4 @@
+
 # SHS_Hacks_2026
 
 Curated by Yasashvee Karthi, Alexander Jonathon Jameson, Guru Anish Agneeswaran, Liam Moorthy, Tejas Ganesh
