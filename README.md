@@ -57,6 +57,25 @@ You can change the function name in the dashboard.
 - Tailwind + shadcn/Radix UI
 - Node runtime API routes (executes reference/student code)
 
+## Language Toolchains
+
+The runner executes code locally, so some languages need host toolchains installed on your machine.
+
+On Windows, these are the exact package installs I used:
+
+```powershell
+winget install --id Microsoft.DotNet.SDK.8 -e --silent --accept-package-agreements --accept-source-agreements
+winget install --id EclipseAdoptium.Temurin.17.JDK -e --silent --accept-package-agreements --accept-source-agreements
+winget install --id LLVM.LLVM -e --silent --accept-package-agreements --accept-source-agreements
+winget install --id Rustlang.Rustup -e --silent --accept-package-agreements --accept-source-agreements
+```
+
+C# can also fall back to the .NET SDK compiler path, but Java, C/C++, and Rust still need their toolchains available on PATH.
+
+## Global Setup
+
+Go to https://phanguard.org/edgeproof
+
 ## Local Setup
 
 The app lives in `agency-website/`.
@@ -99,7 +118,7 @@ EdgeProof is at:
 http://localhost:3003/edgeproof
 ```
 
-## Production Notes
+## Possible Future Improvements
 
 - Add CSRF protection and rate limiting
 - Integrate execution sandboxing if you later run untrusted student code

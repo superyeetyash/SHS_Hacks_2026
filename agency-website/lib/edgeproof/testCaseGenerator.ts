@@ -730,6 +730,94 @@ function expandToCount({
   return output.slice(0, requiredCount);
 }
 
+function tupleToPlannedCase(tuple: [string, unknown, unknown, string]) {
+  const [category, input, expected, rationale] = tuple;
+  return { category, input, expected, rationale };
+}
+
+function buildFallbackPlannedCase({
+  model,
+  exampleInput,
+  index,
+}: {
+  model: InputModel;
+  exampleInput: unknown;
+  index: number;
+}) {
+  if (exampleInput && typeof exampleInput === "object" && !Array.isArray(exampleInput)) {
+    const baseInput = exampleInput as Record<string, unknown>;
+    const nextInput: Record<string, unknown> = { ...baseInput };
+    const keys = Object.keys(baseInput);
+    const targetKey = keys[0] ?? "value";
+    const currentValue = baseInput[targetKey];
+
+    if (Array.isArray(currentValue)) {
+      nextInput[targetKey] = [index, index + 1, index + 2];
+    } else if (typeof currentValue === "number") {
+      nextInput[targetKey] = index;
+    } else if (typeof currentValue === "string") {
+      nextInput[targetKey] = `fallback_${index}`;
+    } else if (currentValue && typeof currentValue === "object" && Array.isArray((currentValue as any).matrix)) {
+      nextInput[targetKey] = {
+        ...(currentValue as any),
+        matrix: [[index]],
+      };
+    } else if (currentValue && typeof currentValue === "object" && typeof (currentValue as any).n === "number" && Array.isArray((currentValue as any).edges)) {
+      nextInput[targetKey] = {
+        ...(currentValue as any),
+        n: Math.max(1, index + 1),
+        edges: index === 0 ? [] : [[0, 1]],
+      };
+    } else {
+      nextInput[targetKey] = index;
+    }
+
+    return {
+      category: `fallback ${targetKey}`,
+      input: nextInput,
+      rationale: "Last-resort unique filler to keep the generated case count exact.",
+    };
+  }
+
+  if (model === "array") {
+    return {
+      category: "fallback array",
+      input: { arr: [index, index + 1, index + 2] },
+      rationale: "Last-resort unique filler to keep the generated case count exact.",
+    };
+  }
+
+  if (model === "string") {
+    return {
+      category: "fallback string",
+      input: { s: `fallback_${index}` },
+      rationale: "Last-resort unique filler to keep the generated case count exact.",
+    };
+  }
+
+  if (model === "matrix") {
+    return {
+      category: "fallback matrix",
+      input: { matrix: [[index]] },
+      rationale: "Last-resort unique filler to keep the generated case count exact.",
+    };
+  }
+
+  if (model === "graph") {
+    return {
+      category: "fallback graph",
+      input: { n: Math.max(1, index + 2), edges: index % 2 === 0 ? [] : [[0, 1]] },
+      rationale: "Last-resort unique filler to keep the generated case count exact.",
+    };
+  }
+
+  return {
+    category: "fallback number",
+    input: { n: index },
+    rationale: "Last-resort unique filler to keep the generated case count exact.",
+  };
+}
+
 function buildFuzzTuplesForModel({
   model,
   constraints,
@@ -825,7 +913,7 @@ export function generateTestCases(payload: {
       model,
       constraints: constraintHints,
       rng,
-      targetCount: Math.max(0, requiredCount - curatedCases.length),
+      targetCount: Math.max(0, requiredCount * 4),
     });
 
     plannedCases = expandToCount({
@@ -834,6 +922,63 @@ export function generateTestCases(payload: {
       requiredCount,
     });
   }
+
+  if (plannedCases.length < requiredCount) {
+    const seenInputs = new Set(plannedCases.map((entry) => stableKey(entry.input)));
+
+    // If the first pass dedupes too aggressively, keep generating until we hit the exact target.
+    for (let attempt = 0; attempt < 4 && plannedCases.length < requiredCount; attempt += 1) {
+      if (exampleInput && typeof exampleInput === "object" && !Array.isArray(exampleInput)) {
+        const supplementalCases = buildMutatedObjectCases({
+          baseInput: exampleInput as Record<string, unknown>,
+          constraints: constraintHints,
+          requiredCount: Math.max(requiredCount * 2, requiredCount + 32),
+          rng,
+        });
+
+        for (const entry of supplementalCases) {
+          if (plannedCases.length >= requiredCount) break;
+          const key = stableKey(entry.input);
+          if (seenInputs.has(key)) continue;
+          seenInputs.add(key);
+          plannedCases.push(entry);
+        }
+      } else {
+        const supplementalTuples = buildFuzzTuplesForModel({
+          model,
+          constraints: constraintHints,
+          rng,
+          targetCount: Math.max(requiredCount * 4, requiredCount + 64),
+        });
+
+        for (const tuple of supplementalTuples) {
+          if (plannedCases.length >= requiredCount) break;
+          const entry = tupleToPlannedCase(tuple);
+          const key = stableKey(entry.input);
+          if (seenInputs.has(key)) continue;
+          seenInputs.add(key);
+          plannedCases.push(entry);
+        }
+      }
+    }
+
+    let fallbackIndex = plannedCases.length;
+    while (plannedCases.length < requiredCount) {
+      const fallbackCase = buildFallbackPlannedCase({
+        model,
+        exampleInput,
+        index: fallbackIndex,
+      });
+      fallbackIndex += 1;
+
+      const key = stableKey(fallbackCase.input);
+      if (seenInputs.has(key)) continue;
+      seenInputs.add(key);
+      plannedCases.push(fallbackCase);
+    }
+  }
+
+  plannedCases = plannedCases.slice(0, requiredCount);
 
   const testCases = plannedCases.map((entry, idx) =>
     buildCase(

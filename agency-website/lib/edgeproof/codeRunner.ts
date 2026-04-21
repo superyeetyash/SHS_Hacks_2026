@@ -11,7 +11,9 @@ const RESULT_END = "__EDGEPROOF_RESULT_END__";
 
 type PythonInvocation = { command: string; args: string[] } | false;
 type JavaToolchain = { javac: string; java: string } | false;
-type CSharpCompiler = { kind: "csc" | "mcs"; command: string } | false;
+type CSharpCompiler =
+  | { kind: "csc" | "mcs" | "dotnet-csc"; command: string; compilerPath?: string }
+  | false;
 type CommandBinary = string | false;
 
 type ExecutionPlan = {
@@ -223,6 +225,29 @@ function resolveCSharpCompiler(): CSharpCompiler {
   if (commandAvailable("mcs", ["--version"])) {
     cachedCSharpCompiler = { kind: "mcs", command: "mcs" };
     return cachedCSharpCompiler;
+  }
+
+  const dotnet = resolveDotnetBinary();
+  if (dotnet) {
+    const sdks = spawnSync(dotnet, ["--list-sdks"], { encoding: "utf8", timeout: 1500 });
+    if (!sdks.error && sdks.status === 0) {
+      const sdkLine = String(sdks.stdout || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .pop();
+
+      const sdkMatch = sdkLine?.match(/^([^\s]+)\s+\[(.+)\]$/);
+      if (sdkMatch) {
+        const sdkVersion = sdkMatch[1];
+        const sdkBasePath = sdkMatch[2];
+        const cscPath = path.join(sdkBasePath, sdkVersion, "Roslyn", "bincore", "csc.dll");
+        if (fs.existsSync(cscPath)) {
+          cachedCSharpCompiler = { kind: "dotnet-csc", command: dotnet, compilerPath: cscPath };
+          return cachedCSharpCompiler;
+        }
+      }
+    }
   }
 
   cachedCSharpCompiler = false;
@@ -1003,7 +1028,7 @@ export function runReferenceOnce({
       if (!compiler) {
         return {
           ok: false,
-          error: "C# compiler was not found. Install `csc` or `mcs` to run C# execution.",
+          error: "C# compiler was not found. Install `csc`, `mcs`, or the .NET SDK to run C# execution.",
         };
       }
 
@@ -1033,7 +1058,9 @@ export function runReferenceOnce({
       const compileArgs =
         compiler.kind === "csc"
           ? ["/nologo", `/out:${outputName}`, "runner.cs"]
-          : ["-nologo", `-out:${outputName}`, "runner.cs"];
+          : compiler.kind === "mcs"
+            ? ["-nologo", `-out:${outputName}`, "runner.cs"]
+            : [compiler.compilerPath as string, "/nologo", `/out:${outputName}`, "runner.cs"];
 
       plan = {
         fileName: "runner.cs",

@@ -372,7 +372,7 @@ function EdgeproofApp() {
                     id="requiredCount"
                     type="number"
                     min={1}
-                    max={200}
+                    max={500}
                     value={String(form.requiredCount)}
                     onChange={(e) => setForm((p) => ({ ...p, requiredCount: Number(e.target.value) }))}
                   />
