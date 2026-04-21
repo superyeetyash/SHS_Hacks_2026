@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CryptoBackdrop, DecryptText, ThemeToggle } from "@/components/crypto-template";
 import { HelixGate } from "@/components/helix-gate";
@@ -15,11 +15,68 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { MonacoTerminalEditor } from "@/components/ui/monaco-terminal-editor";
-import { TerminalEditor } from "@/components/ui/terminal-editor";
 
+import { isExecutableEdgeproofLanguage, type EdgeproofLanguage } from "@/lib/edgeproof/languages";
 import type { GeneratedSuite } from "@/lib/edgeproof/types";
 
-type Language = "javascript" | "python";
+type Language = EdgeproofLanguage;
+
+const LANGUAGE_OPTIONS: Array<{ value: Language; label: string }> = [
+  { value: "javascript", label: "JavaScript" },
+  { value: "python", label: "Python" },
+  { value: "java", label: "Java" },
+  { value: "c", label: "C" },
+  { value: "cpp", label: "C++" },
+  { value: "csharp", label: "C#" },
+  { value: "rust", label: "Rust" },
+  { value: "sql", label: "SQL" },
+];
+
+function codePlaceholderForLanguage(language: Language): string {
+  switch (language) {
+    case "python":
+      return "def solve(input_data):\n    return input_data";
+    case "java":
+      return "public class Solution {\n  public static String solve(String inputJson) {\n    return inputJson;\n  }\n}";
+    case "c":
+      return "#include <stdio.h>\n\nconst char* solve(const char* input_json) {\n  return input_json;\n}";
+    case "cpp":
+      return "#include <string>\n\nstd::string solve(const std::string& input_json) {\n  return input_json;\n}";
+    case "csharp":
+      return "public static class Solution {\n  public static string solve(string inputJson) {\n    return inputJson;\n  }\n}";
+    case "rust":
+      return "fn solve(input_json: String) -> String {\n    input_json\n}";
+    case "sql":
+      return "-- input_data(payload TEXT) contains the test input as JSON text\nSELECT payload AS result FROM input_data;";
+    default:
+      return "function solve(input) {\n  return input;\n}";
+  }
+}
+
+function fileExtensionForLanguage(language: Language): string {
+  switch (language) {
+    case "python":
+      return "py";
+    case "java":
+      return "java";
+    case "c":
+      return "c";
+    case "cpp":
+      return "cpp";
+    case "csharp":
+      return "cs";
+    case "rust":
+      return "rs";
+    case "sql":
+      return "sql";
+    default:
+      return "js";
+  }
+}
+
+function editorPath(prefix: string, language: Language): string {
+  return `${prefix}.${fileExtensionForLanguage(language)}`;
+}
 
 type FormState = {
   title: string;
@@ -65,6 +122,9 @@ function EdgeproofApp() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRetesting, setIsRetesting] = useState(false);
 
+  const executionSupported = isExecutableEdgeproofLanguage(form.language);
+  const suiteExecutionSupported = suite ? isExecutableEdgeproofLanguage(suite.metadata.language) : executionSupported;
+
   const suiteSummary = useMemo(() => {
     if (!suite) return null;
     const expectedReadyCount = suite.testCases.filter((t) => t.expectedReady).length;
@@ -73,6 +133,14 @@ function EdgeproofApp() {
     const studentErrorCount = suite.testCases.filter((t) => Boolean(t.studentError)).length;
     return { expectedReadyCount, studentPassCount, studentFailCount, studentErrorCount };
   }, [suite]);
+
+  useEffect(() => {
+    setForm((current) => {
+      if (isExecutableEdgeproofLanguage(current.language)) return current;
+      if (!current.runReference && !current.runStudent) return current;
+      return { ...current, runReference: false, runStudent: false };
+    });
+  }, [form.language]);
 
   async function handleGenerate() {
     setError(null);
@@ -88,6 +156,9 @@ function EdgeproofApp() {
         }
       }
 
+      const runReference = executionSupported ? form.runReference : false;
+      const runStudent = executionSupported ? form.runStudent : false;
+
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -97,10 +168,10 @@ function EdgeproofApp() {
           language: form.language,
           functionName: form.functionName,
           requiredCount: form.requiredCount,
-          runReference: form.runReference,
+          runReference,
           referenceCode: form.referenceCode,
-          runStudent: form.runStudent,
-          studentCode: form.runStudent ? form.studentCode : undefined,
+          runStudent,
+          studentCode: runStudent ? form.studentCode : undefined,
           exampleInput,
           exampleDescription: form.exampleDescription || undefined,
         }),
@@ -122,6 +193,11 @@ function EdgeproofApp() {
 
   async function handleRetest() {
     if (!suite) return;
+    if (!isExecutableEdgeproofLanguage(suite.metadata.language)) {
+      setError("Retesting is currently available for JavaScript and Python only.");
+      return;
+    }
+
     setError(null);
     setIsRetesting(true);
 
@@ -157,14 +233,16 @@ function EdgeproofApp() {
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <Link href="/" className="flex items-center gap-3" onClick={(e) => e.preventDefault()} aria-disabled="true">
             <div className="bg-foreground/10 text-foreground inline-flex size-10 items-center justify-center rounded-lg border">
-              <span className="font-mono text-xs">01</span>
+              <span className="font-mono text-xs">
+                <DecryptText text="01" trigger="hover" />
+              </span>
             </div>
             <div className="flex flex-col">
               <div className="text-sm font-semibold tracking-tight">
-                <DecryptText text="Edgeproof" />
+                <DecryptText text="Edgeproof" trigger="hover" />
               </div>
               <div className="text-muted-foreground text-xs">
-                <DecryptText text="Testcase Generator" />
+                <DecryptText text="Testcase Generator" trigger="hover" />
               </div>
             </div>
           </Link>
@@ -176,7 +254,7 @@ function EdgeproofApp() {
               onClick={(e) => e.preventDefault()}
               aria-disabled="true"
             >
-              <DecryptText text="SERVICES" className="font-mono" />
+              <DecryptText text="SERVICES" className="font-mono" trigger="hover" />
             </Link>
             <Link
               href="/#work"
@@ -184,7 +262,7 @@ function EdgeproofApp() {
               onClick={(e) => e.preventDefault()}
               aria-disabled="true"
             >
-              <DecryptText text="WORK" className="font-mono" />
+              <DecryptText text="WORK" className="font-mono" trigger="hover" />
             </Link>
             <Link
               href="/#process"
@@ -192,28 +270,33 @@ function EdgeproofApp() {
               onClick={(e) => e.preventDefault()}
               aria-disabled="true"
             >
-              <DecryptText text="PROCESS" className="font-mono" />
+              <DecryptText text="PROCESS" className="font-mono" trigger="hover" />
             </Link>
-            <ThemeToggle />
+            <ThemeToggle trigger="hover" />
           </nav>
         </header>
 
         <section className="flex flex-col gap-6 pt-6">
           <Badge variant="secondary" className="w-fit">
-            <DecryptText text="EDGE • PROOF • CLEAN" className="font-mono text-[11px]" />
+            <DecryptText text="EDGE • PROOF • CLEAN" className="font-mono text-[11px]" trigger="hover" />
           </Badge>
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
-              <DecryptText text="Edgeproof" className="text-foreground font-mono" />
-              <DecryptText text="Testcase Generator." className="text-muted-foreground block" />
+              <DecryptText text="Edgeproof" className="text-foreground font-mono" trigger="hover" />
+              <DecryptText text="Testcase Generator." className="text-muted-foreground block" trigger="hover" />
             </h1>
             <p className="text-muted-foreground max-w-2xl text-sm">
-              <DecryptText text="Generate edge-case-heavy suites from a prompt and optional reference solution, then evaluate student code." />
+              <DecryptText
+                text="Generate edge-case-heavy suites from a prompt and optional reference solution, then evaluate student code."
+                trigger="hover"
+              />
             </p>
           </div>
         </section>
 
         <Separator className="bg-border/60" />
+
+        <div data-crypto-hover="off">
 
         {error && (
           <Alert variant="destructive">
@@ -251,11 +334,13 @@ function EdgeproofApp() {
                 <Label htmlFor="title">
                   <DecryptText text="Challenge title" />
                 </Label>
-                <TerminalEditor
+                <MonacoTerminalEditor
                   value={form.title}
                   onChange={(value) => setForm((p) => ({ ...p, title: value }))}
                   placeholder="Two Sum, Longest Substring..."
                   ariaLabel="Challenge title"
+                  language="text"
+                  path="challenge-title.txt"
                   minHeight="44px"
                 />
               </div>
@@ -271,8 +356,11 @@ function EdgeproofApp() {
                     value={form.language}
                     onChange={(e) => setForm((p) => ({ ...p, language: e.target.value as Language }))}
                   >
-                    <option value="javascript">JavaScript</option>
-                    <option value="python">Python</option>
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -294,11 +382,13 @@ function EdgeproofApp() {
                   <Label htmlFor="seed">
                     <DecryptText text="Seed (optional)" />
                   </Label>
-                  <TerminalEditor
+                  <MonacoTerminalEditor
                     value={form.seed}
                     onChange={(value) => setForm((p) => ({ ...p, seed: value }))}
                     placeholder="leave blank for random"
                     ariaLabel="Seed (optional)"
+                    language="text"
+                    path="seed.txt"
                     minHeight="44px"
                   />
                 </div>
@@ -307,11 +397,13 @@ function EdgeproofApp() {
                   <Label htmlFor="functionName">
                     <DecryptText text="Function name" />
                   </Label>
-                  <TerminalEditor
+                  <MonacoTerminalEditor
                     value={form.functionName}
                     onChange={(value) => setForm((p) => ({ ...p, functionName: value }))}
                     placeholder="solve"
                     ariaLabel="Function name"
+                    language="text"
+                    path="function-name.txt"
                     minHeight="44px"
                   />
                 </div>
@@ -336,11 +428,13 @@ function EdgeproofApp() {
                 <Label htmlFor="directions">
                   <DecryptText text="Directions / prompt" />
                 </Label>
-                <TerminalEditor
+                <MonacoTerminalEditor
                   value={form.directions}
                   onChange={(value) => setForm((p) => ({ ...p, directions: value }))}
                   placeholder="Explain the problem, input/output, and constraints..."
                   ariaLabel="Directions / prompt"
+                  language="text"
+                  path="directions.txt"
                   minHeight="128px"
                 />
               </div>
@@ -352,14 +446,10 @@ function EdgeproofApp() {
                 <MonacoTerminalEditor
                   value={form.referenceCode}
                   onChange={(value) => setForm((p) => ({ ...p, referenceCode: value }))}
-                  placeholder={
-                    form.language === "python"
-                      ? "def solve(input_data):\n    ..."
-                      : "function solve(input) {\n  ...\n}"
-                  }
+                  placeholder={codePlaceholderForLanguage(form.language)}
                   ariaLabel="Reference solution"
                   language={form.language}
-                  path={form.language === "python" ? "reference.py" : "reference.js"}
+                  path={editorPath("reference", form.language)}
                   minHeight="176px"
                 />
               </div>
@@ -386,14 +476,10 @@ function EdgeproofApp() {
                 <MonacoTerminalEditor
                   value={form.studentCode}
                   onChange={(value) => setForm((p) => ({ ...p, studentCode: value }))}
-                  placeholder={
-                    form.language === "python"
-                      ? "def solve(input_data):\n    ..."
-                      : "function solve(input) {\n  ...\n}"
-                  }
+                  placeholder={codePlaceholderForLanguage(form.language)}
                   ariaLabel="Student code"
                   language={form.language}
-                  path={form.language === "python" ? "student.py" : "student.js"}
+                  path={editorPath("student", form.language)}
                   minHeight="176px"
                 />
               </div>
@@ -403,11 +489,13 @@ function EdgeproofApp() {
                   <Label htmlFor="exampleDescription">
                     <DecryptText text="Example description (optional)" />
                   </Label>
-                  <TerminalEditor
+                  <MonacoTerminalEditor
                     value={form.exampleDescription}
                     onChange={(value) => setForm((p) => ({ ...p, exampleDescription: value }))}
                     placeholder="Optional example run"
                     ariaLabel="Example description (optional)"
+                    language="text"
+                    path="example-description.txt"
                     minHeight="44px"
                   />
                 </div>
@@ -416,12 +504,13 @@ function EdgeproofApp() {
                   <Label htmlFor="exampleInputJson">
                     <DecryptText text="Example input JSON (optional)" />
                   </Label>
-                  <TerminalEditor
+                  <MonacoTerminalEditor
                     value={form.exampleInputJson}
                     onChange={(value) => setForm((p) => ({ ...p, exampleInputJson: value }))}
                     placeholder='{"arr":[1,2,3]}'
                     ariaLabel="Example input JSON (optional)"
-                    language="json"
+                    language="text"
+                    path="example-input.txt"
                     minHeight="44px"
                   />
                 </div>
@@ -554,44 +643,54 @@ function EdgeproofApp() {
                     <div className="font-medium">
                       <DecryptText text="Retest existing cases" />
                     </div>
-                    <div className="text-muted-foreground text-xs">
-                      <DecryptText text="Paste student code and re-run against the current suite." />
-                    </div>
-                    <div className="mt-3 grid gap-3">
-                      <div className="grid gap-2">
-                        <Label htmlFor="retestFunctionName">
-                          <DecryptText text="Function name" />
-                        </Label>
-                        <TerminalEditor
-                          value={form.functionName}
-                          onChange={(value) => setForm((p) => ({ ...p, functionName: value }))}
-                          ariaLabel="Function name"
-                          minHeight="44px"
-                        />
+                    {suiteExecutionSupported ? (
+                      <>
+                        <div className="text-muted-foreground text-xs">
+                          <DecryptText text="Paste student code and re-run against the current suite." />
+                        </div>
+                        <div className="mt-3 grid gap-3">
+                          <div className="grid gap-2">
+                            <Label htmlFor="retestFunctionName">
+                              <DecryptText text="Function name" />
+                            </Label>
+                            <MonacoTerminalEditor
+                              value={form.functionName}
+                              onChange={(value) => setForm((p) => ({ ...p, functionName: value }))}
+                              ariaLabel="Function name"
+                              language="text"
+                              path="retest-function-name.txt"
+                              minHeight="44px"
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="retestStudentCode">
+                              <DecryptText text="Student code" />
+                            </Label>
+                            <MonacoTerminalEditor
+                              value={form.studentCode}
+                              onChange={(value) => setForm((p) => ({ ...p, studentCode: value }))}
+                              ariaLabel="Student code"
+                              language={form.language}
+                              path={editorPath("retest-student", form.language)}
+                              minHeight="128px"
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <Button onClick={handleRetest} disabled={isRetesting}>
+                              {isRetesting ? (
+                                <DecryptText text="Retesting..." trigger="click" />
+                              ) : (
+                                <DecryptText text="Retest" trigger="click" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground mt-2 text-xs">
+                        <DecryptText text="Retest execution currently supports JavaScript and Python only." />
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="retestStudentCode">
-                          <DecryptText text="Student code" />
-                        </Label>
-                        <MonacoTerminalEditor
-                          value={form.studentCode}
-                          onChange={(value) => setForm((p) => ({ ...p, studentCode: value }))}
-                          ariaLabel="Student code"
-                          language={form.language}
-                          path={form.language === "python" ? "retest-student.py" : "retest-student.js"}
-                          minHeight="128px"
-                        />
-                      </div>
-                      <div className="flex justify-end">
-                        <Button onClick={handleRetest} disabled={isRetesting}>
-                          {isRetesting ? (
-                            <DecryptText text="Retesting..." trigger="click" />
-                          ) : (
-                            <DecryptText text="Retest" trigger="click" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -705,6 +804,7 @@ function EdgeproofApp() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
     </main>
   );

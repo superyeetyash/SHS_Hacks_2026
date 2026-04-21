@@ -1,4 +1,6 @@
-export type SupportedLanguage = "python" | "javascript" | "java" | "cpp";
+import type { EdgeproofLanguage } from "@/lib/edgeproof/languages";
+
+export type SupportedLanguage = EdgeproofLanguage;
 
 export type ExpectedOutput = unknown | "depends-on-spec";
 

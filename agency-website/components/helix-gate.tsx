@@ -11,6 +11,11 @@ function randGlyph() {
 	return HELIX_GLYPHS[Math.floor(Math.random() * HELIX_GLYPHS.length)];
 }
 
+function glyphByIndex(index: number, tick: number) {
+	const mixed = (index * 1103515245 + tick * 12345 + 0x9e3779b9) >>> 0;
+	return HELIX_GLYPHS[mixed % HELIX_GLYPHS.length];
+}
+
 function mod(n: number, m: number) {
 	return ((n % m) + m) % m;
 }
@@ -226,10 +231,12 @@ export function HelixGate({
 		let fill = "rgb(255, 255, 255)";
 		let lastFill = "";
 		let nextFillCheckAt = 0;
+		let isDarkTheme = true;
 
 		function syncFill(now: number) {
 			if (now < nextFillCheckAt) return;
 			nextFillCheckAt = now + 200;
+			isDarkTheme = document.documentElement.classList.contains("dark");
 			const probe = colorProbeRef.current;
 			const fromProbeRaw = probe ? window.getComputedStyle(probe).color : "";
 			const fromProbe = fromProbeRaw ? toCanvasColor(fromProbeRaw) : null;
@@ -257,11 +264,13 @@ export function HelixGate({
 
 		function drawHelix(now: number, w: number, h: number) {
 			syncFill(now);
-			const t = now / 1000;
+			const staticLightLoading = !interactive && !isDarkTheme;
+			const t = staticLightLoading ? 0 : interactive ? now / 1000 : now / 4200;
+			const glyphTick = staticLightLoading ? 0 : interactive ? Math.floor(now / 180) : Math.floor(now / 900);
 			const centerX = w / 2;
 			const spacing = 12;
 			const margin = spacing * 4;
-			const speedY = 104;
+			const speedY = staticLightLoading ? 0 : interactive ? 104 : 18;
 			const wrapH = h + margin * 2;
 
 			const baseAmp = Math.min(w * 0.34, 340);
@@ -287,9 +296,11 @@ export function HelixGate({
 					const u = cols === 1 ? 0.5 : j / (cols - 1);
 					const edge = Math.abs(u - 0.5) * 2;
 					const x = centerX - halfWidth + u * span;
-					const a = aBase * (0.8 + 0.2 * edge);
+					const lightModeScale = isDarkTheme ? 1 : 0.66;
+					const a = aBase * (0.8 + 0.2 * edge) * lightModeScale;
 					const size = sizeBase * (0.94 + 0.12 * edge);
-					points.push({ x, y, char: randGlyph(), size, a });
+					const glyphIndex = i * 97 + j * 31 + Math.round(halfWidth);
+					points.push({ x, y, char: glyphByIndex(glyphIndex, glyphTick), size, a });
 				}
 			}
 
@@ -389,7 +400,7 @@ export function HelixGate({
 					<div className="bg-card/70 flex items-center gap-3 rounded-lg border px-6 py-4 backdrop-blur">
 						<Spinner className="text-muted-foreground" />
 						<div className="text-muted-foreground text-sm">
-							<ScrambleText text="LOADING" />
+							<ScrambleText text="LOADING" trigger="none" />
 						</div>
 					</div>
 				</div>

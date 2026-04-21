@@ -5,7 +5,17 @@ import dynamic from "next/dynamic";
 
 import { cn } from "@/lib/utils";
 
-export type MonacoTerminalEditorLanguage = "javascript" | "python" | "json" | "text";
+export type MonacoTerminalEditorLanguage =
+  | "javascript"
+  | "python"
+  | "java"
+  | "c"
+  | "cpp"
+  | "csharp"
+  | "rust"
+  | "sql"
+  | "json"
+  | "text";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), {
   ssr: false,
@@ -17,6 +27,18 @@ function toMonacoLanguage(language: MonacoTerminalEditorLanguage): string {
       return "javascript";
     case "python":
       return "python";
+    case "java":
+      return "java";
+    case "c":
+      return "c";
+    case "cpp":
+      return "cpp";
+    case "csharp":
+      return "csharp";
+    case "rust":
+      return "rust";
+    case "sql":
+      return "sql";
     case "json":
       return "json";
     default:

@@ -33,6 +33,13 @@ function scrambleTo(text: string, revealCount: number) {
 
 type ScrambleTrigger = "hover" | "click" | "none";
 
+function hoverCryptoEnabled(target: EventTarget | null) {
+	if (!(target instanceof HTMLElement)) return true;
+	if (target.closest('[data-crypto-hover="on"]')) return true;
+	if (target.closest('[data-crypto-hover="off"]')) return false;
+	return true;
+}
+
 export function ScrambleText({
 	text,
 	className,
@@ -78,7 +85,14 @@ export function ScrambleText({
 	return (
 		<span
 			className={cn("font-mono", className)}
-			onMouseEnter={trigger === "hover" ? runScramble : undefined}
+			onMouseEnter={
+				trigger === "hover"
+					? (e) => {
+						if (!hoverCryptoEnabled(e.currentTarget)) return;
+						runScramble();
+					}
+					: undefined
+			}
 			onClick={trigger === "click" ? runScramble : undefined}
 		>
 			{display}
@@ -147,7 +161,14 @@ export function DecryptText({
 	return (
 		<span
 			className={cn(className)}
-			onMouseEnter={trigger === "hover" ? runScramble : undefined}
+			onMouseEnter={
+				trigger === "hover"
+					? (e) => {
+						if (!hoverCryptoEnabled(e.currentTarget)) return;
+						runScramble();
+					}
+					: undefined
+			}
 			onClick={trigger === "click" ? runScramble : undefined}
 		>
 			{display}
@@ -365,7 +386,7 @@ export function CryptoBackdrop({
 	);
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ trigger = "click" }: { trigger?: ScrambleTrigger } = {}) {
 	const { resolvedTheme, setTheme } = useTheme();
 	const [mounted, setMounted] = React.useState(false);
 
@@ -384,7 +405,7 @@ export function ThemeToggle() {
 
 	return (
 		<Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => setTheme(nextTheme)}>
-			<ScrambleText text={isDark ? "DARK" : "LIGHT"} trigger="click" />
+			<ScrambleText text={isDark ? "DARK" : "LIGHT"} trigger={trigger} />
 		</Button>
 	);
 }

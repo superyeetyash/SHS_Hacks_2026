@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isDeepStrictEqual } from "node:util";
 
 import { runReferenceBatch } from "@/lib/edgeproof/codeRunner";
+import { isExecutableEdgeproofLanguage, parseEdgeproofLanguage } from "@/lib/edgeproof/languages";
 import type { GeneratedSuite } from "@/lib/edgeproof/types";
 
 export const runtime = "nodejs";
@@ -19,6 +20,26 @@ function addMissingFunctionHint(errorText: string | null, functionName: string, 
 
   if (normalizedLanguage === "javascript") {
     return `${errorText}\n\nHint: your code must define \`${functionName}(input)\`.\nExample:\nfunction ${functionName}(input) {\n  // use your class/helpers here\n  return input;\n}`;
+  }
+
+  if (normalizedLanguage === "java") {
+    return `${errorText}\n\nHint: define class \`Solution\` with method \`${functionName}(String inputJson)\`.\nExample:\npublic class Solution {\n  public static String ${functionName}(String inputJson) {\n    return inputJson;\n  }\n}`;
+  }
+
+  if (normalizedLanguage === "c") {
+    return `${errorText}\n\nHint: define \`${functionName}(const char* input_json)\`.\nExample:\nconst char* ${functionName}(const char* input_json) {\n  return input_json;\n}`;
+  }
+
+  if (normalizedLanguage === "cpp") {
+    return `${errorText}\n\nHint: define \`${functionName}(const std::string& input_json)\`.\nExample:\nstd::string ${functionName}(const std::string& input_json) {\n  return input_json;\n}`;
+  }
+
+  if (normalizedLanguage === "csharp") {
+    return `${errorText}\n\nHint: define class \`Solution\` with method \`${functionName}(string inputJson)\`.\nExample:\npublic static class Solution {\n  public static string ${functionName}(string inputJson) {\n    return inputJson;\n  }\n}`;
+  }
+
+  if (normalizedLanguage === "rust") {
+    return `${errorText}\n\nHint: define \`${functionName}(input_json: String) -> String\`.\nExample:\nfn ${functionName}(input_json: String) -> String {\n    input_json\n}`;
   }
 
   return errorText;
@@ -117,7 +138,13 @@ export async function POST(request: Request) {
   const studentCode = String(body?.studentCode || "");
   const functionName = String(body?.functionName || "solve").trim() || "solve";
 
-  const language = String(body?.language || suite?.metadata?.language || "python").trim().toLowerCase();
+  const requestedLanguage = String(body?.language || suite?.metadata?.language || "python").trim();
+  const parsedLanguage = parseEdgeproofLanguage(requestedLanguage);
+  if (!parsedLanguage) {
+    return NextResponse.json({ ok: false, error: `Unsupported language: ${requestedLanguage}` }, { status: 400 });
+  }
+
+  const language = parsedLanguage;
 
   if (!suite || !suite.metadata || !Array.isArray(suite.testCases)) {
     return NextResponse.json({ ok: false, error: "Missing or invalid suite." }, { status: 400 });
@@ -125,6 +152,13 @@ export async function POST(request: Request) {
 
   if (!studentCode.trim()) {
     return NextResponse.json({ ok: false, error: "Please paste student code before retesting." }, { status: 400 });
+  }
+
+  if (!isExecutableEdgeproofLanguage(language)) {
+    return NextResponse.json(
+      { ok: false, error: "Retesting is currently available for JavaScript and Python only." },
+      { status: 400 }
+    );
   }
 
   const suiteCopy: GeneratedSuite = JSON.parse(JSON.stringify(suite));
