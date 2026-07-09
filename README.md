@@ -1,7 +1,7 @@
 
 # SHS_Hacks_2026
 
-Curated by Yasashvee Karthi, Alexander Jonathon Jameson, Guru Anish Agneeswaran, Liam Moorthy, Tejas Ganesh
+Curated by Yasashvee Karthi, Alexander Jameson, Anish Agneeswaran, Liam Moorthy, Tejas Ganesh
 
 ## EdgeProof Generator (Admin Test-Case Builder)
 
